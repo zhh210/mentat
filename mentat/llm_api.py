@@ -26,7 +26,7 @@ package_name = __name__.split(".")[0]
 
 # Check for .env file or already exported API key
 # If no api key found, raise an error
-def setup_api_key():
+def setup_api_key(use_azure = True):
     if not load_dotenv(mentat_dir_path / ".env"):
         load_dotenv()
     key = os.getenv("OPENAI_API_KEY")
@@ -38,11 +38,17 @@ def setup_api_key():
             "No OpenAI api key detected.\nEither place your key into a .env"
             " file or export it as an environment variable."
         )
-    try:
-        openai.api_key = key
-        openai.Model.list()  # type: ignore Test the API key
-    except AuthenticationError as e:
-        raise UserError(f"OpenAI gave an Authentication Error:\n{e}")
+    if use_azure:
+        openai.api_type = "azure"
+        openai.api_base = os.environ['OPENAI_API_BASE']
+        openai.api_version = "2023-07-01-preview"
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+    else:
+        try:
+            openai.api_key = key
+            openai.Model.list()  # type: ignore Test the API key
+        except AuthenticationError as e:
+            raise UserError(f"OpenAI gave an Authentication Error:\n{e}")
 
 
 def is_test_environment():
@@ -104,7 +110,7 @@ def warn_user(message: str, max_tries: int, details: Details):
     on_backoff=partial(warn_user, "Rate limit recieved from OpenAI's servers", 3),
 )
 async def call_llm_api(
-    messages: list[dict[str, str]], model: str
+    messages: list[dict[str, str]], model: str, use_azure = True
 ) -> AsyncGenerator[Any, None]:
     raise_if_in_test_environment()
     session_context = SESSION_CONTEXT.get()
@@ -113,6 +119,12 @@ async def call_llm_api(
     response: AsyncGenerator[Any, None] = cast(
         AsyncGenerator[Any, None],
         await openai.ChatCompletion.acreate(  # type: ignore
+            engine='gpt-35-turbo',
+            messages=messages,
+            temperature=0.5,
+            max_tokens=800,
+            stream=True,
+        ) if use_azure else openai.ChatCompletion.acreate(  # type: ignore
             model=model,
             messages=messages,
             temperature=config.temperature,
