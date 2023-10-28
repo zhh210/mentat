@@ -41,7 +41,7 @@ def setup_api_key(use_azure = True):
     if use_azure:
         openai.api_type = "azure"
         openai.api_base = os.environ['OPENAI_API_BASE']
-        openai.api_version = "2023-07-01-preview"
+        openai.api_version = os.environ['OPENAI_API_VERSION']
         openai.api_key = os.getenv("OPENAI_API_KEY")
     else:
         try:
